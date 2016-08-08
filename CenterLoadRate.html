@@ -19,14 +19,14 @@
 		<script type = "text/javascript" src = "../src/main/webapp/pages/js/common.js"></script>
 		<style type = "text/css">
 			#main {
-				height: 100%;
-				width: 100%
+				height:100%;
+				width: 100%;
 			}
 			
 			#save1, #save2 {
 				z-index: 99;
 				position: absolute;
-				right: 10px
+				right: 10px;
 			}
 			
 		</style>
@@ -47,9 +47,9 @@
 					type: "json",
 					waiting: true,
 					ondata: function(){
-						var chtml = varCol()
+						var chtml = varCol(params,1)
 						$("#tree1").html(chtml);
-						data1 = ShowTree(this.getResponseJSON());
+						data1 = ShowTree(this.getResponseJSON(),params,1);
 						$("#tree1").treegrid({
 							idField: "id",
 							treeField: "field",
@@ -71,9 +71,9 @@
 					type: "json",
 					waiting: true,
 					ondata: function(){
-						var chtml = varCol()
+						var chtml = varCol(params,0)
 						$("#tree2").html(chtml);
-						data2 = ShowTree(this.getResponseJSON());
+						data2 = ShowTree(this.getResponseJSON(),params,0);
 						$("#tree2").treegrid({
 							idField: "id",
 							treeField: "field",
@@ -89,13 +89,13 @@
 				});
 				
 				$("#save1").click(function(){
-							$(this)[0].download = params.param1.replace(/-/g, "")+params.param2.replace(/-/g, "")+params.param3+"下游分拨货量装载率统计.csv";
-							this.href = "data:text/csv;charset=utf-8,\ufeff" + encodeURIComponent(download_str(data1));
+							$(this)[0].download = params.param1.replace(/-/g, "")+params.param2.replace(/-/g, "")+params.param3+"发往各分公司货量装载率统计.csv";
+							this.href = "data:text/csv;charset=utf-8,\ufeff" + encodeURIComponent(download_str(data1,params,1));
 						});
 						
 				$("#save2").click(function(){
-							$(this)[0].download = params.param1.replace(/-/g, "")+params.param2.replace(/-/g, "")+params.param3+"上游分拨货量装载率统计.csv";
-							this.href = "data:text/csv;charset=utf-8,\ufeff" + encodeURIComponent(download_str(data2));
+							$(this)[0].download = params.param1.replace(/-/g, "")+params.param2.replace(/-/g, "")+"各分公司到达"+params.param3+"货量装载率统计.csv";
+							this.href = "data:text/csv;charset=utf-8,\ufeff" + encodeURIComponent(download_str(data2,params,0));
 						});
 			});
 			
@@ -117,10 +117,10 @@
 				return monlist;
 			}
 			
-			//动态列
-			function varCol(){
+			//动态列 p为1时表示从查询分拨发往各分公司，2表示从各分公司到达查询分拨
+			function varCol(params,p){
 				var cols = MonCol(params);
-				str = "<thead frozen='true'><tr><th field='field' width='200'>名称</th></tr></thead><thead><tr>"
+				str = (p == 0)?("<thead frozen='true'><tr><th field='field' width='200'>各分公司到达"+params.param3+"</th></tr></thead><thead><tr>"):("<thead frozen='true'><tr><th field='field' width='200'>"+params.param3+"发往各分公司</th></tr></thead><thead><tr>")
 				for(var i = 0; i < cols.length; i++ ){
 					str += "<th colspan = '2'>" + cols[i] + "</th>";
 				}
@@ -133,31 +133,31 @@
 			}
 			
 			
-			function ShowTree(data){
-				var rows = [], footer = [], orglist = [], centerlist = [], routelist = [],
-					temp_org = {}, temp_center = {}, temp_route = {}, total = {},
-					k = 1,  //k用于标记id
-				    monlist = MonCol(params);
+			function ShowTree(data,params,p){
+				var rows = [], footer = [], orglist = [], routelist = [], splitlist = [],
+					temp_org = {}, temp_route = {}, temp_split = {}, total = {},
+					k = 1;  //k用于标记id
+				var monlist = MonCol(params);
 				for(var i = 0; i < data.length; i++){
 					//第一次初始化
 					if(i == 0){
 						temp_org["id"] = k;
-						temp_center["_parentId"] = k;
+						temp_route["_parentId"] = k;
 						k++;
-						temp_center["id"] = k;
+						temp_route["id"] = k;
 						k++;
-						temp_org["field"] = data[i]["org"];
+						temp_org["field"] = (p==1)?(params.param3+"->"+data[i]["org"]):(data[i]["org"]+"->"+params.param3);
 						temp_org["state"] = "closed";
 						orglist.push(data[i]["org"]);
-						temp_center["field"] = data[i]["center"];
-						temp_center["state"] = "closed";
-						centerlist.push(data[i]["center"]);
+						temp_route["field"] = data[i]["route_name"];
+						//temp_route["state"] = "closed";
+						routelist.push(data[i]["org"]+data[i]["route_name"]);
 						total["field"] = "合计";
 						for(var j = 0; j <= monlist.length; j++){
 							eval('temp_org["weight'+ j +'"] = 0');
 							eval('temp_org["load'+ j +'"] = 0');
-							eval('temp_center["weight'+ j +'"] = 0');
-							eval('temp_center["load'+ j +'"] = 0');
+							eval('temp_route["weight'+ j +'"] = 0');
+							eval('temp_route["load'+ j +'"] = 0');
 							eval('total["weight'+ j +'"] = 0');
 							eval('total["load'+ j +'"] = 0');
 						};
@@ -184,7 +184,7 @@
 							orglist.push(data[i]["org"]);
 							k++;
 							temp_org["id"] = k;
-							temp_org["field"] = data[i]["org"];
+							temp_org["field"] = (p==1)?(params.param3+"->"+data[i]["org"]):(data[i]["org"]+"->"+params.param3);
 							temp_org["state"] = "closed";
 							for(var j = 0; j <= monlist.length; j++){
 								eval('temp_org["weight'+ j +'"] = 0');
@@ -196,24 +196,24 @@
 						
 					};
 					
-					if(!centerlist.contains(data[i]["center"])){
+					if(!routelist.contains(data[i]["org"]+data[i]["route_name"])){
 						
-						if(centerlist.length > 0){
+						if(routelist.length > 0){
 						
 							
-							eval('temp_center["weight'+ monlist.length +'"] = Math.round(temp_center["weight'+monlist.length+'"]/'+monlist.length+'*100)/100');
-							eval('temp_center["load'+ monlist.length +'"] = Math.round(temp_center["load'+monlist.length+'"]/'+monlist.length+'*100)/100');
-							rows.push(temp_center);
-							temp_center = {};
-							centerlist.push(data[i]["center"]);
-							temp_center["_parentId"] = temp_org["id"];
+							eval('temp_route["weight'+ monlist.length +'"] = Math.round(temp_route["weight'+monlist.length+'"]/'+monlist.length+'*100)/100');
+							eval('temp_route["load'+ monlist.length +'"] = Math.round(temp_route["load'+monlist.length+'"]/'+monlist.length+'*100)/100');
+							rows.push(temp_route);
+							temp_route = {};
+							routelist.push(data[i]["org"]+data[i]["route_name"]);
+							temp_route["_parentId"] = temp_org["id"];
 							k++;
-							temp_center["id"] = k;
-							temp_center["field"] = data[i]["center"];
-							temp_center["state"] = "closed";
+							temp_route["id"] = k;
+							temp_route["field"] = data[i]["route_name"];
+							//temp_route["state"] = "closed";
 							for(var j = 0; j <= monlist.length; j++){
-								eval('temp_center["weight'+ j +'"] = 0');
-								eval('temp_center["load'+ j +'"] = 0');
+								eval('temp_route["weight'+ j +'"] = 0');
+								eval('temp_route["load'+ j +'"] = 0');
 							}
 							
 						}
@@ -221,28 +221,28 @@
 						
 					};
 					
-					if(!routelist.contains(data[i]["center"]+data[i]["route_name"])){
-						if(routelist.length > 0){
+					if(!splitlist.contains(data[i]["route_name"]+data[i]["split_route"])){
+						if(splitlist.length > 0){
 							var cnt = 0; //统计有车线记录的天数，用于求均值
-							for(var key in temp_route){
+							for(var key in temp_split){
 								if(key.indexOf("weight") != -1){
 									cnt++;
 								}
 							};
-							eval('temp_route["weight'+ monlist.length +'"] = Math.round(temp_route["weight'+monlist.length+'"]/'+(cnt-1)+'*100)/100');
-							eval('temp_route["load'+ monlist.length +'"] = Math.round(temp_route["load'+monlist.length+'"]/'+(cnt-1)+'*100)/100');
-							rows.push(temp_route);
-							temp_route = {};
+							eval('temp_split["weight'+ monlist.length +'"] = Math.round(temp_split["weight'+monlist.length+'"]/'+(cnt-1)+'*100)/100');
+							eval('temp_split["load'+ monlist.length +'"] = Math.round(temp_split["load'+monlist.length+'"]/'+(cnt-1)+'*100)/100');
+							rows.push(temp_split);
+							temp_split = {};
 							k++;
 						}
-						routelist.push(data[i]["center"]+data[i]["route_name"]);
-						temp_route["_parentId"] = temp_center["id"];
-						temp_route["id"] = k;
-						temp_route["field"] = data[i]["route_name"];
+						splitlist.push(data[i]["route_name"]+data[i]["split_route"]);
+						temp_split["_parentId"] = temp_route["id"];
+						temp_split["id"] = k;
+						temp_split["field"] = data[i]["split_route"];
 						//temp_route["state"] = "closed";
 						
-						eval('temp_route["weight'+ monlist.length +'"] = 0');
-						eval('temp_route["load'+ monlist.length +'"] = 0');
+						eval('temp_split["weight'+ monlist.length +'"] = 0');
+						eval('temp_split["load'+ monlist.length +'"] = 0');
 
 						
 						
@@ -252,16 +252,16 @@
 					
 					for(var j = 0; j < monlist.length; j++){
 						if(data[i]["inday"] == monlist[j]){
-							eval('temp_route["weight'+ j +'"] = '+data[i]["weight"]);
-							eval('temp_route["load'+ j +'"] = '+data[i]["load"]);
-							eval('temp_center["weight'+ j +'"] += '+data[i]["weight"]);
-							eval('temp_center["load'+ j +'"] += '+data[i]["load"]);
+							eval('temp_split["weight'+ j +'"] = '+data[i]["weight"]);
+							eval('temp_split["load'+ j +'"] = '+data[i]["load"]);
+							eval('temp_route["weight'+ j +'"] += '+data[i]["weight"]);
+							eval('temp_route["load'+ j +'"] += '+data[i]["load"]);
 							eval('temp_org["weight'+ j +'"] += '+data[i]["weight"]);
 							eval('temp_org["load'+ j +'"] += '+data[i]["load"]);
+							eval('temp_split["weight'+ monlist.length +'"] += '+data[i]["weight"]);
+							eval('temp_split["load'+ monlist.length +'"] += '+data[i]["load"]);
 							eval('temp_route["weight'+ monlist.length +'"] += '+data[i]["weight"]);
 							eval('temp_route["load'+ monlist.length +'"] += '+data[i]["load"]);
-							eval('temp_center["weight'+ monlist.length +'"] += '+data[i]["weight"]);
-							eval('temp_center["load'+ monlist.length +'"] += '+data[i]["load"]);
 							eval('temp_org["weight'+ monlist.length +'"] += '+data[i]["weight"]);
 							eval('temp_org["load'+ monlist.length +'"] += '+data[i]["load"]);
 							break;	
@@ -277,14 +277,6 @@
 				
 			}
 			
-			//解决小数精度缺失
-			function accAdd(arg1,arg2){  
-				var r1,r2,m;  
-				try{r1=arg1.toString().split(".")[1].length}catch(e){r1=0}  
-				try{r2=arg2.toString().split(".")[1].length}catch(e){r2=0}  
-				m=Math.pow(10,Math.max(r1,r2))  
-				return (arg1*m+arg2*m)/m ;
-			}  
 			
 			//row排序，便于导出
 			function compare(propertyName) { 
@@ -301,13 +293,13 @@
 					}
 			}
 			
-			function download_str(data){
+			function download_str(data, params,p){
 				var mon = MonCol(params), 
 					rows = data["rows"],
 					footer = data["footer"];
 				rows.push(footer);
 	
-				var str = "名称,";
+				var str = (p==1)? params.param3 +"到达各分公司":params.param3 +"发往各分公司"+",";
 				//表头
 				for(var j = 0; j < mon.length; j++){
 					str += mon[j]+","+""+",";
