@@ -37,7 +37,7 @@
 				DATA_URL1 = "http://10.9.45.68:8080/tss/data/json/2163", //分拨下游
 			    DATA_URL2 = "http://10.9.45.68:8080/tss/data/json/2153", //分拨上游
 				
-			    params = {"param1": "2016-07-30", "param2": "2016-08-02", "param3": "杭州分拨"};
+			    params = {"param1": "2016-08-04", "param2": "2016-08-07", "param3": "杭州分拨"};
 			
 			$(function(){
 				tssJS.ajax({
@@ -47,19 +47,29 @@
 					type: "json",
 					waiting: true,
 					ondata: function(){
-						var chtml = varCol(params,1)
+						var chtml = varCol(params,1);
 						$("#tree1").html(chtml);
+						//动态tab标题
+						var titles = $('#main').find('.tabs-header:first').find('.tabs-title');
+						titles.eq(0).text(params.param3+"发往各分公司货量统计");
+						titles.eq(1).text("各分公司到达"+params.param3+"货量统计");
 						data1 = ShowTree(this.getResponseJSON(),params,1);
-						$("#tree1").treegrid({
-							idField: "id",
-							treeField: "field",
-							//width: 900,
+						$("#tree1").datagrid({
 							height: 600,
-							showFooter: true,
-							animate: true,
-							data: data1
-							
-						})
+							frozenColumns:chtml[0],
+							columns:chtml[1],
+							data: data1,
+							rowStyler: function(index,row){
+								if (row.split_route == undefined){
+									return 'background: #ddf0ed'
+								}
+							},
+							onLoadSuccess: function(data){
+								if(data.rows.length>0){
+									MergeCells("tree1","route_name");
+								}
+							}
+						});
 							
 					}
 				});
@@ -71,19 +81,31 @@
 					type: "json",
 					waiting: true,
 					ondata: function(){
-						var chtml = varCol(params,0)
+						var chtml = varCol(params,0);
 						$("#tree2").html(chtml);
+						$("#title2").attr("title", "各分公司到达"+params.param3+"货量统计"); 
 						data2 = ShowTree(this.getResponseJSON(),params,0);
-						$("#tree2").treegrid({
-							idField: "id",
-							treeField: "field",
-							//width: 900,
+						$("#tree2").datagrid({
 							height: 600,
-							showFooter: true,
-							animate: true,
-							data: data2
+							frozenColumns:chtml[0],
+							columns:chtml[1],
+							data: data2,
+							rowStyler: function(index,row){
+								if (row.split_route == undefined){
+									return 'background: #ddf0ed'}
+							},
+							formatter: function(value, row, index){
+								if(value != undefined){
+									return round(value*100)/100;
+								}
+							},
+							onLoadSuccess: function(data){
+								if(data.rows.length>0){
+									MergeCells("tree2","route_name");
+								}
+							}
 							
-						})
+						});
 							
 					}
 				});
@@ -103,8 +125,6 @@
 			function MonCol(params){
 				var start_date = new Date(params.param1.replace(/-/g,"/")).getTime(),
 					end_date = new Date(params.param2.replace(/-/g,"/")).getTime(),
-					//s = start_date.getTime();
-					//e = end_date.getTime(),
 					monlist = [];
 				while(start_date <= end_date){
 					start_date = new Date(start_date);
@@ -120,16 +140,33 @@
 			//动态列 p为1时表示从查询分拨发往各分公司，2表示从各分公司到达查询分拨
 			function varCol(params,p){
 				var cols = MonCol(params);
-				str = (p == 0)?("<thead frozen='true'><tr><th field='field' width='200'>各分公司到达"+params.param3+"</th></tr></thead><thead><tr>"):("<thead frozen='true'><tr><th field='field' width='200'>"+params.param3+"发往各分公司</th></tr></thead><thead><tr>")
+				var frozencol = [], column = [], templist = [];
+				var str = (p == 0)?("各分公司到达"+params.param3+"车线"):(params.param3+"发往各分公司车线")
+				templist.push({title: str, colspan: 2});
+				frozencol.push(templist);
+				templist = [];
+				templist.push({field: "route_name", title: "车线名称", width: 150});
+				templist.push({field: "split_route", title: "分段车线", width: 90});
+				frozencol.push(templist);
+				templist = [];
 				for(var i = 0; i < cols.length; i++ ){
-					str += "<th colspan = '2'>" + cols[i] + "</th>";
+					str = cols[i];
+					templist.push({title: str, colspan: 2});
 				}
-				str += "<th colspan = '2'>均值</th></tr><tr>"
+				templist.push({title: "均值", colspan: 2});
+				column.push(templist);
+				templist = [];
+				//str += "<th colspan = '2'>均值</th></tr><tr>"
+				//str += '<th field = "route_name" width = "150">车线名称</th><th field = "split_route" width = "90" align = "right">分段车线</th>'
 				for(var i = 0; i <= cols.length; i++){
-					str += '<th field = "weight'+ i + '" width = "70" align = "right">货量</th><th field = "load'+i+'"width = "70" align = "right">整车运力</th>';
+					//str += '<th field = "weight'+ i + '" width = "60" align = "right" data-options = "formatter: to_decimal">货量</th><th field = "load'+i+'"width = "60" align = "right" data-options = "formatter: to_decimal">整车运力</th>';
+					str = "weight"+i;
+					templist.push({field: str, title: "货量", width: 60, formatter: to_decimal, align: "right"});
+					str = "load"+i;
+					templist.push({field: str, title: "整车运力", width: 60, formatter: to_decimal, align: "right"});
 				}
-				str += "</tr></thead>"
-				return str;
+				column.push(templist);
+				return [frozencol, column]
 			}
 			
 			
@@ -142,37 +179,29 @@
 					//第一次初始化
 					if(i == 0){
 						temp_org["id"] = k;
-						temp_route["_parentId"] = k;
 						k++;
 						temp_route["id"] = k;
 						k++;
-						temp_org["field"] = (p==1)?(params.param3+"->"+data[i]["org"]):(data[i]["org"]+"->"+params.param3);
-						temp_org["state"] = "closed";
+						temp_org["route_name"] = (p==1)?(params.param3+"->"+data[i]["org"]):(data[i]["org"]+"->"+params.param3);
 						orglist.push(data[i]["org"]);
-						temp_route["field"] = data[i]["route_name"];
-						//temp_route["state"] = "closed";
-						routelist.push(data[i]["org"]+data[i]["route_name"]);
-						total["field"] = "合计";
+						temp_route["route_name"] = data[i]["route_name"];
+						temp_route["split_route"] = data[i]["split_route"];
+						routelist.push(data[i]["org"]+data[i]["route_name"]+data[i]["split_route"]);
+						total["route_name"] = "合计";
 						for(var j = 0; j <= monlist.length; j++){
 							eval('temp_org["weight'+ j +'"] = 0');
 							eval('temp_org["load'+ j +'"] = 0');
-							eval('temp_route["weight'+ j +'"] = 0');
-							eval('temp_route["load'+ j +'"] = 0');
 							eval('total["weight'+ j +'"] = 0');
 							eval('total["load'+ j +'"] = 0');
 						};
 						
+						eval('temp_route["weight'+ monlist.length +'"] = 0');
+						eval('temp_route["load'+ monlist.length +'"] = 0');
 					};
 					
 					if(!orglist.contains(data[i]["org"])){
 						if(orglist.length > 0){
 						
-							//小数相加后重新定义精确度
-							//for(var i = 0; i < monlist.length; i++){
-								//eval('temp_org["weight'+i+'"] = Math.round(temp_org["weight'+i+'"]*100)/100');
-								//eval('temp_org["load'+i+'"] = Math.round(temp_org["load'+i+'"]*100)/100');
-							//}
-							
 							eval('temp_org["weight'+ monlist.length +'"] = Math.round(temp_org["weight'+monlist.length+'"]/'+monlist.length+'*100)/100');
 							eval('temp_org["load'+ monlist.length +'"] = Math.round(temp_org["load'+monlist.length+'"]/'+monlist.length+'*100)/100');
 							rows.push(temp_org);
@@ -184,7 +213,7 @@
 							orglist.push(data[i]["org"]);
 							k++;
 							temp_org["id"] = k;
-							temp_org["field"] = (p==1)?(params.param3+"->"+data[i]["org"]):(data[i]["org"]+"->"+params.param3);
+							temp_org["route_name"] = (p==1)?(params.param3+"->"+data[i]["org"]):(data[i]["org"]+"->"+params.param3);
 							temp_org["state"] = "closed";
 							for(var j = 0; j <= monlist.length; j++){
 								eval('temp_org["weight'+ j +'"] = 0');
@@ -196,70 +225,41 @@
 						
 					};
 					
-					if(!routelist.contains(data[i]["org"]+data[i]["route_name"])){
-						
+					if(!routelist.contains(data[i]["org"]+data[i]["route_name"]+data[i]["split_route"])){
 						if(routelist.length > 0){
-						
-							
-							eval('temp_route["weight'+ monlist.length +'"] = Math.round(temp_route["weight'+monlist.length+'"]/'+monlist.length+'*100)/100');
-							eval('temp_route["load'+ monlist.length +'"] = Math.round(temp_route["load'+monlist.length+'"]/'+monlist.length+'*100)/100');
+							var cnt = 0; //统计有车线记录的天数，用于求均值
+							for(var key in temp_route){
+								if(key.indexOf("weight") != -1){
+									cnt++;
+								}
+							};
+							eval('temp_route["weight'+ monlist.length +'"] = Math.round(temp_route["weight'+monlist.length+'"]/'+(cnt-1)+'*100)/100');
+							eval('temp_route["load'+ monlist.length +'"] = Math.round(temp_route["load'+monlist.length+'"]/'+(cnt-1)+'*100)/100');
 							rows.push(temp_route);
 							temp_route = {};
-							routelist.push(data[i]["org"]+data[i]["route_name"]);
-							temp_route["_parentId"] = temp_org["id"];
+							routelist.push(data[i]["org"]+data[i]["route_name"]+data[i]["split_route"]);
 							k++;
 							temp_route["id"] = k;
-							temp_route["field"] = data[i]["route_name"];
-							//temp_route["state"] = "closed";
-							for(var j = 0; j <= monlist.length; j++){
-								eval('temp_route["weight'+ j +'"] = 0');
-								eval('temp_route["load'+ j +'"] = 0');
-							}
+							temp_route["route_name"] = data[i]["route_name"];
+							temp_route["split_route"] = data[i]["split_route"];
+							eval('temp_route["weight'+ monlist.length +'"] = 0');
+						    eval('temp_route["load'+ monlist.length +'"] = 0');
 							
 						}
 						
 						
 					};
 					
-					if(!splitlist.contains(data[i]["route_name"]+data[i]["split_route"])){
-						if(splitlist.length > 0){
-							var cnt = 0; //统计有车线记录的天数，用于求均值
-							for(var key in temp_split){
-								if(key.indexOf("weight") != -1){
-									cnt++;
-								}
-							};
-							eval('temp_split["weight'+ monlist.length +'"] = Math.round(temp_split["weight'+monlist.length+'"]/'+(cnt-1)+'*100)/100');
-							eval('temp_split["load'+ monlist.length +'"] = Math.round(temp_split["load'+monlist.length+'"]/'+(cnt-1)+'*100)/100');
-							rows.push(temp_split);
-							temp_split = {};
-							k++;
-						}
-						splitlist.push(data[i]["route_name"]+data[i]["split_route"]);
-						temp_split["_parentId"] = temp_route["id"];
-						temp_split["id"] = k;
-						temp_split["field"] = data[i]["split_route"];
-						//temp_route["state"] = "closed";
-						
-						eval('temp_split["weight'+ monlist.length +'"] = 0');
-						eval('temp_split["load'+ monlist.length +'"] = 0');
-
-						
-						
-					}
-					
 					
 					
 					for(var j = 0; j < monlist.length; j++){
 						if(data[i]["inday"] == monlist[j]){
-							eval('temp_split["weight'+ j +'"] = '+data[i]["weight"]);
-							eval('temp_split["load'+ j +'"] = '+data[i]["load"]);
-							eval('temp_route["weight'+ j +'"] += '+data[i]["weight"]);
-							eval('temp_route["load'+ j +'"] += '+data[i]["load"]);
+							
+							eval('temp_route["weight'+ j +'"] = '+data[i]["weight"]);
+							eval('temp_route["load'+ j +'"] = '+data[i]["load"]);
 							eval('temp_org["weight'+ j +'"] += '+data[i]["weight"]);
 							eval('temp_org["load'+ j +'"] += '+data[i]["load"]);
-							eval('temp_split["weight'+ monlist.length +'"] += '+data[i]["weight"]);
-							eval('temp_split["load'+ monlist.length +'"] += '+data[i]["load"]);
+							
 							eval('temp_route["weight'+ monlist.length +'"] += '+data[i]["weight"]);
 							eval('temp_route["load'+ monlist.length +'"] += '+data[i]["load"]);
 							eval('temp_org["weight'+ monlist.length +'"] += '+data[i]["weight"]);
@@ -271,9 +271,11 @@
 					
 				};
 				
-				footer.push(total);
+				
+				total["id"] = 999999;
+				rows.push(total);
 				rows = rows.sort(compare("id"));
-				return {"total": rows.length, "rows": rows, "footer": footer};
+				return {"total": rows.length, "rows": rows};
 				
 			}
 			
@@ -299,18 +301,18 @@
 					footer = data["footer"];
 				rows.push(footer);
 	
-				var str = (p==1)? params.param3 +"到达各分公司":params.param3 +"发往各分公司"+",";
+				var str = (p==1)? params.param3 +"到达各分公司":params.param3 +"发往各分公司"+","+""+",";
 				//表头
 				for(var j = 0; j < mon.length; j++){
 					str += mon[j]+","+""+",";
 				}
-				str += "均值"+","+""+"\n"+""+",";
+				str += "均值"+","+""+"\n"+"车线名称"+","+"分段车线"+",";
 				for(var j = 0; j < mon.length; j++){
 					str += "货量"+","+"整车运力"+",";
 				}
 				str += "货量"+","+"整车运力"+"\n";
 				for(var i = 0; i < rows.length; i++){
-					str += rows[i]["field"] + ","
+					str += rows[i]["route_name"] + ","+rows[i]["split_route"]+","
 					for(var j = 0; j <= mon.length; j++){
 						if(eval('rows[i]["weight'+j+'"] == undefined')){
 							str += ""+","+""+",";
@@ -323,16 +325,74 @@
 				
 				return str;
 			}
+			
+		function to_decimal(value, row, index){
+			if(value != undefined){
+				return Math.round(value*100)/100;
+			}
+		}	
+
+		function to_list(value, row, index){
+			if(value.indexOf('->') != -1 || value.indexOf('-') == -1){
+				return "<span style = 'align: center'>"+value+"</span>";
+			}else{
+				return value;
+			}
+		};
+					
+		/**
+        * EasyUI DataGrid根据字段动态合并单元格
+        * @param fldList 要合并table的id
+	    * @param fldList 要合并的列,用逗号分隔(例如："name,department,office");
+        */
+          function MergeCells(tableID, fldList) {
+			var Arr = fldList.split(",");
+			var dg = $('#' + tableID);
+			var fldName;
+            var RowCount = dg.datagrid("getRows").length;
+            var span;
+            var PerValue = "";
+            var CurValue = "";
+            var length = Arr.length - 1;
+            for (i = length; i >= 0; i--) {
+                fldName = Arr[i];
+                PerValue = "";
+                span = 1;
+                for (row = 0; row <= RowCount; row++) {
+                    if (row == RowCount) {
+                        CurValue = "";
+                    }
+                    else {
+                        CurValue = dg.datagrid("getRows")[row][fldName];
+                    }
+                    if (PerValue == CurValue) {
+                        span += 1;
+                    }
+                    else {
+                        var index = row - span;
+                        dg.datagrid('mergeCells', {
+                             index: index,
+                             field: fldName,
+                             rowspan: span,
+                             colspan: null
+                         });
+                         span = 1;
+                         PerValue = CurValue;
+                    }
+                 }
+             }
+         };
+		
 				
 		</script>
 	<head>
 	<body>
 		<div id = "main" class = "easyui-tabs">
-			<div title = "下游分拨货量装载率统计">
+			<div id = "title1">
 				<a href="#"  id = 'save1' class="easyui-linkbutton" iconCls="icon-save">导出</a>
 				<table id = "tree1"></table>
 			</div>
-			<div title = "上游分拨货量装载率统计">
+			<div id = "title2">
 				<a href="#"  id = 'save2' class="easyui-linkbutton" iconCls="icon-save">导出</a>
 				<table id = "tree2"></table>
 			</div>
